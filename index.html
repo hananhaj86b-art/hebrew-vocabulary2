@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מסע המילים - שלב אחרי שלב</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .animate-bounce-slow { animation: bounce 2s infinite; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hidden { display: none !important; }
+        
+        /* Toast animation */
+        .toast-enter { animation: toastSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .toast-exit { animation: toastSlideOut 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards; }
+        @keyframes toastSlideIn {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes toastSlideOut {
+            from { transform: translate(-50%, 0); opacity: 1; }
+            to { transform: translate(-50%, -20px); opacity: 0; }
+        }
+
+        /* Scratch Card styles */
+        .blur-overlay { backdrop-filter: blur(8px); background-color: rgba(226, 232, 240, 0.8); }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans min-h-screen">
+
+    <!-- Top Navbar -->
+    <nav class="bg-white shadow-sm p-4 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600">
+                    <i data-lucide="map" class="w-6 h-6"></i>
+                </div>
+                <h1 class="font-bold text-xl text-gray-800 hidden sm:block">מסע המילים</h1>
+            </div>
+            
+            <div class="flex items-center gap-4 md:gap-6">
+                <div class="flex items-center gap-2 font-bold text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
+                    <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                    <span id="scoreDisplay">0</span>
+                </div>
+                <div class="flex items-center gap-2 font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                    <i data-lucide="clock" class="w-5 h-5"></i>
+                    <span id="timerDisplay" class="w-12 text-center">00:00</span>
+                </div>
+                <div id="stageCounter" class="text-sm font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full hidden md:block">
+                    שלב 0 מתוך 8
+                </div>
+            </div>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div id="progressBarContainer" class="max-w-4xl mx-auto mt-4 h-2 bg-gray-200 rounded-full overflow-hidden hidden">
+            <div id="progressBar" class="h-full bg-gradient-to-r from-green-400 to-blue-500 transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto p-4 py-8 relative">
+        <!-- Stage Header -->
+        <div id="stageHeader" class="mb-8 flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hidden">
+            <div id="stageIcon" class="bg-blue-50 p-3 rounded-xl text-blue-500"></div>
+            <div>
+                <h2 id="stageTitle" class="text-2xl font-bold text-gray-800"></h2>
+                <p id="stageInstruction" class="text-gray-600"></p>
+            </div>
+        </div>
+
+        <!-- Stage Container -->
+        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 md:p-8 min-h-[400px] relative overflow-hidden" id="appContainer">
+            <!-- Dynamic content will be injected here -->
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="absolute top-4 left-1/2 px-6 py-3 rounded-full text-white font-bold shadow-lg flex items-center gap-2 z-50 hidden">
+            <i id="toastIcon" class="w-5 h-5"></i>
+            <span id="toastText"></span>
+        </div>
+    </main>
+
+    <script>
+        // --- DATA ---
+        const STAGES = [
+            {
+                id: 0,
+                title: "ברוכים הבאים למסע המילים!",
+                iconName: "map",
+                description: "במשחק זה תעברו 8 שלבים שונים. בכל שלב תתרגלו מילים חדשות בעברית. עליכם לסיים כל שלב בהצלחה כדי לפתוח את השלב הבא. בהצלחה!"
+            },
+            {
+                id: 1,
+                title: "שלב 1: חיי יום-יום",
+                iconName: "smile",
+                instruction: "התאימו כל מילה להגדרה הנכונה שלה.",
+                type: "matching",
+                pairs: [
+                    { word: "בילויים", def: "דברים כיפיים שעושים בזמן הפנוי" },
+                    { word: "אטרקציה", def: "מקום מעניין שמושך הרבה תיירים" },
+                    { word: "מגלשות מים", def: "מתקן כיפי בבריכה שיורדים בו מהר" },
+                    { word: "חוויה מוחשית", def: "משהו שאפשר להרגיש באמת, לא רק במחשבה" },
+                    { word: "משוטטים", def: "הולכים ממקום למקום בלי מטרה מיוחדת" },
+                    { word: "תחפושות", def: "בגדים מיוחדים שלובשים בחג פורים" },
+                    { word: "לעיתים", def: "לפעמים, לא כל הזמן" },
+                    { word: "תכף ומיד", def: "עכשיו, בלי לחכות" }
+                ]
+            },
+            {
+                id: 2,
+                title: "שלב 2: רגשות ומצבים",
+                iconName: "zap",
+                instruction: "בחרו את המילה המתאימה ביותר לכל סיטואציה.",
+                type: "mcq",
+                questions: [
+                    { q: "הבן שלי קיבל ציון 100 במבחן הקשה, אני מרגיש הרבה...", options: ["הלם", "גאווה", "נחמה", "החמצה"], answer: "גאווה" },
+                    { q: "הייתי קרוב מאוד לנצח במשחק, אבל בסוף הפסדתי בשנייה האחרונה. איזו...", options: ["חוסר מעשה", "נחמה", "החמצה", "סתירה"], answer: "החמצה" },
+                    { q: "אני לא יודע מה יהיה מחר בעבודה, יש הרבה...", options: ["חוסר ודאות", "הלם", "גאווה", "נחמה"], answer: "חוסר ודאות" },
+                    { q: "המנהל אמר משהו אחד בבוקר, אבל עשה משהו אחר בערב. זו...", options: ["נחמה", "החמצה", "סתירה", "גאווה"], answer: "סתירה" },
+                    { q: "כשקשה לי או כשאני עצוב, חבר טוב מביא לי...", options: ["חוסר ודאות", "נחמה", "הלם", "חוסר מעשה"], answer: "נחמה" }
+                ]
+            },
+            {
+                id: 3,
+                title: "שלב 3: חושבים וכותבים",
+                iconName: "brain-circuit",
+                instruction: "השלימו את המילה החסרה בכל משפט מתוך הרשימה.",
+                type: "fill-blanks",
+                words: ["דילמה", "הנחות", "הסלמה", "לעומת זאת", "מסתייג", "סקר", "ציטוט"],
+                sentences: [
+                    { text1: "יש לי ", text2: " קשה: האם ללמוד באוניברסיטה או לטייל בעולם?", answer: "דילמה" },
+                    { text1: "לפי ה", text2: " החדש שפורסם, רוב האנשים מעדיפים לעבוד מהבית.", answer: "סקר" },
+                    { text1: "אני מסכים עם הרעיון הכללי, אבל אני ", text2: " מהדרך שבה עשיתם את זה.", answer: "מסתייג" },
+                    { text1: "היא אוהבת מאוד את הקיץ. ", text2: ", הוא מעדיף את החורף והגשם.", answer: "לעומת זאת" },
+                    { text1: "בכתבה שקראתי יש ", text2: " מדויק של דברי ראש הממשלה.", answer: "ציטוט" }
+                ]
+            },
+            {
+                id: 4,
+                title: "שלב 4: עבודה וחברה",
+                iconName: "briefcase",
+                instruction: "לחצו על מילה מהבנק ואז לחצו על ההסבר המתאים לה.",
+                type: "bank-match",
+                pairs: [
+                    { word: "כלכלן", def: "אדם שלמד על כסף, עסקים ושוק העבודה" },
+                    { word: "מומחית", def: "אישה שיודעת הרבה מאוד על נושא מסוים" },
+                    { word: "חוזה", def: "מסמך חשוב שחותמים עליו כששוכרים דירה" },
+                    { word: "יוקרה", def: "משהו שעולה הרבה כסף ונחשב למכובד מאוד" },
+                    { word: "סיטונאות", def: "למכור מוצרים בכמויות גדולות לחנויות, לא לאנשים פרטיים" },
+                    { word: "להתחרות", def: "כשיש תחרות וצריך לנסות להיות הכי טוב או להגיע ראשון" }
+                ]
+            },
+            {
+                id: 5,
+                title: "שלב 5: פעולות ותנועה",
+                iconName: "zap",
+                instruction: "קראו את הסיטואציה ובחרו את הפעולה המתאימה.",
+                type: "mcq",
+                questions: [
+                    { q: "להרגיש משהו עם הידיים כדי לדעת מאיזה חומר הוא עשוי", options: ["למלט", "למשש", "השתמט", "נהירה"], answer: "למשש" },
+                    { q: "לא לעשות משהו שהיית חייב לעשות (כמו עבודה, צבא או תשלום)", options: ["זריזות", "זלילה", "השתמט", "למשש"], answer: "השתמט" },
+                    { q: "לעשות משהו מהר מאוד ובצורה טובה", options: ["זריזות", "למלט", "זלילה", "נהירה"], answer: "זריזות" },
+                    { q: "לאכול הרבה מאוד אוכל ובמהירות", options: ["זלילה", "למשש", "נהירה", "השתמט"], answer: "זלילה" },
+                    { q: "אנשים רבים שהולכים יחד לאותו מקום, כמו להופעה", options: ["למלט", "נהירה", "זריזות", "למשש"], answer: "נהירה" }
+                ]
+            },
+            {
+                id: 6,
+                title: "שלב 6: עולם של תיאורים",
+                iconName: "eye",
+                instruction: "לחצו על הריבועים המטושטשים כדי 'לגרד' ולגלות את הרמז, ואז בחרו את המילה המתאימה.",
+                type: "scratch",
+                items: [
+                    { clue: "איש שלא אומר 'תודה' או 'בבקשה' הוא אדם...", answer: "גס רוח" },
+                    { clue: "פיל הוא לא חיה גדולה, הוא פשוט...", answer: "ענקי" },
+                    { clue: "אזור שיש בו הרבה הרים הוא אזור...", answer: "הררי" },
+                    { clue: "הדבר שאנחנו מסתכלים עליו כשאנחנו עובדים במשרד הוא...", answer: "מסך המחשב" },
+                    { clue: "האדמה שאנחנו דורכים עליה נקראת גם...", answer: "קרקע" },
+                    { clue: "תהליך שבו צמח או עסק נהיה גדול יותר נקרא...", answer: "צמיחה" }
+                ],
+                words: ["גס רוח", "ענקי", "הררי", "מסך המחשב", "קרקע", "צמיחה"]
+            },
+            {
+                id: 7,
+                title: "שלב 7: עולם הטקסטיל",
+                iconName: "shirt",
+                instruction: "מיינו את המילים לקטגוריות הנכונות.",
+                type: "bank-match",
+                pairs: [
+                    { word: "אריג", def: "סוג של בד שעשוי מחוטים שתי וערב" },
+                    { word: "טקסטיל", def: "השם הכללי לתעשיית הבדים והבגדים" },
+                    { word: "חליפה", def: "בגד רשמי ואלגנטי, בדרך כלל עם ז'קט ומכנסיים" }
+                ]
+            },
+            {
+                id: 8,
+                title: "שלב 8: סיפור אינטראקטיבי",
+                iconName: "book-open",
+                instruction: "השלימו את הסיפור הקצר באמצעות המילים הנכונות.",
+                type: "story",
+                story: [
+                    { type: "text", content: "לאחר חודשים של תכנון קפדני, הגעתי ל" },
+                    { type: "blank", options: ["דלקה", "אוורור", "הגשמה עצמית", "נתב״ג"], answer: "נתב״ג" },
+                    { type: "text", content: " לפנות בוקר. הטיסה הזו לא הייתה סתם חופשה שגרתית, אלא היוותה עבורי מעין " },
+                    { type: "blank", options: ["דלקה", "אוורור", "הגשמה עצמית", "נתב״ג"], answer: "הגשמה עצמית" },
+                    { type: "text", content: " מקצועית ואישית. בעודי ממתין בטרקלין, הופעלה לפתע אזעקה צורמת שהעידה על " },
+                    { type: "blank", options: ["דלקה", "אוורור", "הגשמה עצמית", "נתב״ג"], answer: "דלקה" },
+                    { type: "text", content: " שפרצה באחד המטבחים. למרבה המזל, מערכת ה" },
+                    { type: "blank", options: ["דלקה", "אוורור", "הגשמה עצמית", "נתב״ג"], answer: "אוורור" },
+                    { type: "text", content: " המשוכללת הופעלה באופן אוטומטי ופזרה את העשן, מה שאפשר לנו לעלות למטוס בבטחה וללא עיכובים משמעותיים." }
+                ]
+            },
+            {
+                id: 9,
+                title: "שלב סיום: יצירה אישית",
+                iconName: "trophy",
+                instruction: "כל הכבוד! הגעתם לשלב האחרון.",
+                type: "production"
+            }
+        ];
+
+        // Extract all unique words for final stage
+        const allWords = (() => {
+            let words = new Set();
+            STAGES.forEach(stage => {
+                if (stage.pairs) stage.pairs.forEach(p => words.add(p.word));
+                if (stage.words) stage.words.forEach(w => words.add(w));
+                if (stage.questions) stage.questions.forEach(q => q.options.forEach(o => words.add(o)));
+                if (stage.story) stage.story.filter(p => p.type === 'blank').forEach(b => b.options.forEach(o => words.add(o)));
+            });
+            return Array.from(words).sort();
+        })();
+
+        // --- GLOBAL STATE ---
+        let currentStageIndex = 0;
+        let score = 0;
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let toastTimeout = null;
+
+        // --- DOM ELEMENTS ---
+        const appContainer = document.getElementById('appContainer');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const stageCounter = document.getElementById('stageCounter');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const stageHeader = document.getElementById('stageHeader');
+        const toast = document.getElementById('toast');
+
+        // --- UTILS ---
+        function shuffleArray(array) {
+            return [...array].sort(() => Math.random() - 0.5);
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateScore(points) {
+            score = Math.max(0, score + points);
+            scoreDisplay.textContent = score;
+        }
+
+        function showFeedback(type, text) {
+            if (toastTimeout) clearTimeout(toastTimeout);
+            
+            toast.className = `absolute top-4 left-1/2 px-6 py-3 rounded-full text-white font-bold shadow-lg flex items-center gap-2 z-50 toast-enter ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+            document.getElementById('toastIcon').setAttribute('data-lucide', type === 'success' ? 'check-circle-2' : 'x-circle');
+            document.getElementById('toastText').textContent = text;
+            
+            // Re-render icons for new elements
+            lucide.createIcons();
+
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 2000);
+        }
+
+        function startTimer() {
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    timerDisplay.textContent = formatTime(timerSeconds);
+                }, 1000);
+            }
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function resetGame() {
+            stopTimer();
+            currentStageIndex = 0;
+            score = 0;
+            timerSeconds = 0;
+            scoreDisplay.textContent = score;
+            timerDisplay.textContent = "00:00";
+            renderStage();
+        }
+
+        function nextStage() {
+            if (currentStageIndex < STAGES.length - 1) {
+                currentStageIndex++;
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    renderStage();
+                }, 50);
+            }
+        }
+
+        // --- STAGE RENDERERS ---
+
+        function renderStage() {
+            const stage = STAGES[currentStageIndex];
+            if (!stage) return;
+
+            appContainer.innerHTML = ''; // Clear container
+
+            // Update Header & Progress
+            if (currentStageIndex === 0) {
+                stageHeader.classList.add('hidden');
+                progressBarContainer.classList.add('hidden');
+                stageCounter.textContent = "";
+            } else if (currentStageIndex < STAGES.length - 1) {
+                stageHeader.classList.remove('hidden');
+                progressBarContainer.classList.remove('hidden');
+                document.getElementById('stageTitle').textContent = stage.title;
+                document.getElementById('stageInstruction').textContent = stage.instruction;
+                document.getElementById('stageIcon').innerHTML = `<i data-lucide="${stage.iconName}" class="w-6 h-6"></i>`;
+                stageCounter.textContent = `שלב ${currentStageIndex} מתוך ${STAGES.length - 2}`;
+                progressBar.style.width = `${(currentStageIndex / (STAGES.length - 2)) * 100}%`;
+            } else {
+                 // Final Stage Header hiding logic
+                 stageHeader.classList.add('hidden');
+                 progressBarContainer.classList.add('hidden');
+                 stageCounter.textContent = "";
+            }
+
+            // Render specific stage type
+            if (currentStageIndex === 0) renderIntro(stage);
+            else {
+                switch (stage.type) {
+                    case 'matching': renderMatching(stage); break;
+                    case 'mcq': renderMCQ(stage); break;
+                    case 'fill-blanks': renderFillBlanks(stage); break;
+                    case 'bank-match': renderBankMatch(stage); break;
+                    case 'scratch': renderScratch(stage); break;
+                    case 'story': renderStory(stage); break;
+                    case 'production': renderProduction(); break;
+                }
+            }
+
+            // Init icons after DOM update
+            lucide.createIcons();
+        }
+
+        function renderIntro(stage) {
+            appContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-8 text-center space-y-6">
+                    <img src="https://www.dropbox.com/scl/fi/n99ekuziwuwo0gw6ayyz4/1c81ae1c-2456-410c-999a-36e725a9728b.png?rlkey=63ta8ngn55sdabt6mfdbyt10z&st=70tr43s5&raw=1" 
+                         alt="לוגו מסע המילים" 
+                         class="w-36 h-36 object-contain animate-bounce-slow drop-shadow-2xl mb-4" />
+                    <h2 class="text-3xl font-bold text-gray-800">${stage.title}</h2>
+                    <p class="text-lg text-gray-600 max-w-md">${stage.description}</p>
+                    <button id="startBtn" class="mt-8 px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full font-bold text-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all flex items-center gap-2">
+                        <i data-lucide="play" class="w-6 h-6 fill-current"></i> מתחילים!
+                    </button>
+                </div>
+            `;
+            document.getElementById('startBtn').addEventListener('click', () => {
+                startTimer();
+                nextStage();
+            });
+        }
+
+        function renderMatching(stage) {
+            let leftItems = shuffleArray([...stage.pairs]);
+            let rightItems = shuffleArray([...stage.pairs]);
+            let selectedLeft = null;
+            let selectedRight = null;
+            let matched = [];
+
+            const container = document.createElement('div');
+            container.className = "grid grid-cols-1 md:grid-cols-2 gap-8";
+            
+            const renderCols = () => {
+                container.innerHTML = '';
+                
+                // Left Col (Words)
+                const leftCol = document.createElement('div');
+                leftCol.className = "space-y-3";
+                leftCol.innerHTML = '<h3 class="font-bold text-gray-500 mb-2">מילים</h3>';
+                leftItems.forEach(item => {
+                    const isMatched = matched.includes(item.word);
+                    const isSelected = selectedLeft === item.word;
+                    const btn = document.createElement('button');
+                    btn.className = `w-full text-right p-4 rounded-xl border-2 transition-all ${
+                        isMatched ? 'bg-green-100 border-green-200 text-green-700 opacity-50 cursor-not-allowed' :
+                        isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' :
+                        'border-gray-200 hover:border-blue-300 hover:bg-gray-50 bg-white'
+                    }`;
+                    btn.textContent = item.word;
+                    btn.disabled = isMatched;
+                    btn.onclick = () => { selectedLeft = item.word; checkMatch(); renderCols(); };
+                    leftCol.appendChild(btn);
+                });
+
+                // Right Col (Defs)
+                const rightCol = document.createElement('div');
+                rightCol.className = "space-y-3";
+                rightCol.innerHTML = '<h3 class="font-bold text-gray-500 mb-2">הגדרות</h3>';
+                rightItems.forEach(item => {
+                    const isMatched = matched.includes(item.word); // Use word to check match status
+                    const isSelected = selectedRight === item.def;
+                    const btn = document.createElement('button');
+                    btn.className = `w-full text-right p-4 rounded-xl border-2 transition-all ${
+                        isMatched ? 'bg-green-100 border-green-200 text-green-700 opacity-50 cursor-not-allowed' :
+                        isSelected ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200' :
+                        'border-gray-200 hover:border-purple-300 hover:bg-gray-50 bg-white'
+                    }`;
+                    btn.textContent = item.def;
+                    btn.disabled = isMatched;
+                    btn.onclick = () => { selectedRight = item.def; checkMatch(); renderCols(); };
+                    rightCol.appendChild(btn);
+                });
+
+                container.appendChild(leftCol);
+                container.appendChild(rightCol);
+            };
+
+            const checkMatch = () => {
+                if (selectedLeft && selectedRight) {
+                    const isMatch = stage.pairs.some(p => p.word === selectedLeft && p.def === selectedRight);
+                    if (isMatch) {
+                        matched.push(selectedLeft);
+                        updateScore(10);
+                        showFeedback('success', 'כל הכבוד! התאמה נכונה.');
+                        if (matched.length === stage.pairs.length) {
+                            setTimeout(nextStage, 1500);
+                        }
+                    } else {
+                        updateScore(-5);
+                        showFeedback('error', 'טעות, נסו שוב!');
+                    }
+                    setTimeout(() => {
+                        selectedLeft = null;
+                        selectedRight = null;
+                        renderCols();
+                    }, 500);
+                }
+            };
+
+            renderCols();
+            appContainer.appendChild(container);
+        }
+
+        function renderMCQ(stage) {
+            let currentQIndex = 0;
+            let isProcessing = false;
+
+            const renderQ = () => {
+                const q = stage.questions[currentQIndex];
+                if (!q) return;
+
+                appContainer.innerHTML = `
+                    <div class="flex flex-col items-center max-w-2xl mx-auto space-y-8 mt-4 animate-fade-in">
+                        <div class="text-gray-400 font-bold">שאלה ${currentQIndex + 1} מתוך ${stage.questions.length}</div>
+                        <div class="bg-indigo-50 p-8 rounded-3xl w-full text-center border border-indigo-100 shadow-inner">
+                            <h3 class="text-2xl font-medium text-indigo-900 leading-relaxed">${q.q}</h3>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full" id="optionsContainer">
+                        </div>
+                    </div>
+                `;
+
+                const optionsContainer = document.getElementById('optionsContainer');
+                q.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = "p-4 bg-white border-2 border-gray-200 rounded-2xl text-lg font-bold text-gray-700 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-600 transition-all shadow-sm active:scale-95 disabled:opacity-80";
+                    btn.textContent = opt;
+                    btn.onclick = () => handleSelect(opt, btn);
+                    optionsContainer.appendChild(btn);
+                });
+            };
+
+            const handleSelect = (opt, btnElement) => {
+                if (isProcessing) return;
+                isProcessing = true;
+
+                // Disable all buttons
+                const buttons = document.querySelectorAll('#optionsContainer button');
+                buttons.forEach(b => b.disabled = true);
+
+                if (opt === stage.questions[currentQIndex].answer) {
+                    btnElement.classList.replace('border-gray-200', 'border-green-500');
+                    btnElement.classList.replace('text-gray-700', 'text-green-600');
+                    btnElement.classList.add('bg-green-50');
+                    updateScore(10);
+                    showFeedback('success', 'תשובה נכונה!');
+                    
+                    setTimeout(() => {
+                        if (currentQIndex < stage.questions.length - 1) {
+                            currentQIndex++;
+                            isProcessing = false;
+                            renderQ();
+                        } else {
+                            nextStage();
+                        }
+                    }, 1000);
+                } else {
+                    btnElement.classList.replace('border-gray-200', 'border-red-500');
+                    btnElement.classList.add('bg-red-50');
+                    updateScore(-5);
+                    showFeedback('error', 'לא מדויק, נסו שוב!');
+                    
+                    setTimeout(() => {
+                        buttons.forEach(b => b.disabled = false);
+                        btnElement.classList.replace('border-red-500', 'border-gray-200');
+                        btnElement.classList.remove('bg-red-50');
+                        isProcessing = false;
+                    }, 1000);
+                }
+            };
+
+            renderQ();
+        }
+
+        function renderFillBlanks(stage) {
+            let answers = {};
+            let isChecking = false;
+
+            appContainer.innerHTML = `
+                <div class="space-y-6 max-w-3xl mx-auto">
+                    <div class="flex flex-wrap gap-2 mb-8 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <span class="font-bold text-blue-800 ml-2">מחסן מילים:</span>
+                        ${stage.words.map(w => `<span class="bg-white px-3 py-1 rounded-full text-sm font-medium text-blue-600 border border-blue-200 shadow-sm">${w}</span>`).join('')}
+                    </div>
+                    <div id="sentencesContainer" class="space-y-4"></div>
+                    <button id="checkBtn" disabled class="mt-6 w-full py-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold rounded-xl text-xl transition-colors">
+                        בדוק תשובות
+                    </button>
+                </div>
+            `;
+
+            const sContainer = document.getElementById('sentencesContainer');
+            const checkBtn = document.getElementById('checkBtn');
+
+            const renderSentences = () => {
+                sContainer.innerHTML = '';
+                stage.sentences.forEach((s, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "text-lg bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center flex-wrap gap-2";
+                    
+                    const select = document.createElement('select');
+                    const isCorrect = isChecking && answers[idx] === s.answer;
+                    const isWrong = isChecking && answers[idx] !== s.answer;
+                    
+                    select.className = `border-2 rounded-lg p-1 font-bold outline-none transition-colors ${
+                        isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 
+                        isWrong ? 'border-red-500 bg-red-50 text-red-700' : 
+                        'border-indigo-300 bg-white text-indigo-600 focus:border-indigo-500'
+                    }`;
+                    select.disabled = isCorrect;
+                    
+                    let optionsHTML = '<option value="" disabled selected>---</option>';
+                    stage.words.forEach(w => {
+                        optionsHTML += `<option value="${w}" ${answers[idx] === w ? 'selected' : ''}>${w}</option>`;
+                    });
+                    select.innerHTML = optionsHTML;
+                    
+                    select.onchange = (e) => {
+                        answers[idx] = e.target.value;
+                        checkBtn.disabled = Object.keys(answers).length < stage.sentences.length;
+                    };
+
+                    div.innerHTML = `<span>${s.text1}</span>`;
+                    div.appendChild(select);
+                    div.innerHTML += `<span>${s.text2}</span>`;
+                    
+                    sContainer.appendChild(div);
+                });
+            };
+
+            checkBtn.onclick = () => {
+                isChecking = true;
+                checkBtn.disabled = true;
+                renderSentences(); // Re-render to show colors
+
+                let allCorrect = true;
+                stage.sentences.forEach((s, idx) => {
+                    if (answers[idx] !== s.answer) allCorrect = false;
+                });
+
+                if (allCorrect) {
+                    updateScore(20);
+                    showFeedback('success', 'מצוין!');
+                    setTimeout(nextStage, 1500);
+                } else {
+                    updateScore(-5);
+                    showFeedback('error', 'יש טעות, בדקו שוב.');
+                    setTimeout(() => {
+                        isChecking = false;
+                        renderSentences();
+                        checkBtn.disabled = false;
+                    }, 2000);
+                }
+            };
+
+            renderSentences();
+        }
+
+        function renderBankMatch(stage) {
+            let bank = shuffleArray(stage.pairs.map(p => p.word));
+            let targets = shuffleArray(stage.pairs.map((p, idx) => ({ ...p, id: idx })));
+            let selectedWord = null;
+            let matches = {}; // targetId: word
+
+            const renderDOM = () => {
+                appContainer.innerHTML = `
+                    <div class="space-y-8 animate-fade-in">
+                        <!-- Word Bank -->
+                        <div class="bg-purple-50 p-6 rounded-2xl border border-purple-100">
+                            <h3 class="font-bold text-purple-800 mb-4 text-center">בנק מילים (לחצו על מילה כדי לבחור אותה)</h3>
+                            <div class="flex flex-wrap gap-3 justify-center" id="bankContainer">
+                                ${bank.length === 0 ? '<span class="text-green-600 font-bold">כל המילים שובצו!</span>' : ''}
+                            </div>
+                        </div>
+                        <!-- Targets -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="targetsContainer"></div>
+                    </div>
+                `;
+
+                const bankContainer = document.getElementById('bankContainer');
+                bank.forEach(word => {
+                    const btn = document.createElement('button');
+                    btn.className = `px-6 py-3 rounded-full font-bold text-lg transition-all shadow-sm ${
+                        selectedWord === word 
+                            ? 'bg-purple-600 text-white scale-110 ring-4 ring-purple-200' 
+                            : 'bg-white text-purple-700 hover:bg-purple-100 border-2 border-purple-200'
+                    }`;
+                    btn.textContent = word;
+                    btn.onclick = () => { selectedWord = word; renderDOM(); };
+                    bankContainer.appendChild(btn);
+                });
+
+                const targetsContainer = document.getElementById('targetsContainer');
+                targets.forEach(t => {
+                    const isMatched = !!matches[t.id];
+                    const div = document.createElement('div');
+                    div.className = `p-4 border-2 rounded-xl flex flex-col justify-between min-h-[120px] cursor-pointer transition-colors ${
+                        isMatched ? 'bg-green-50 border-green-200 cursor-default' : 
+                        selectedWord ? 'border-dashed border-purple-400 hover:bg-purple-50 bg-white' : 'border-gray-200 bg-white'
+                    }`;
+                    
+                    div.innerHTML = `
+                        <p class="text-gray-700 font-medium mb-4 pointer-events-none">${t.def}</p>
+                        <div class="h-12 flex items-center justify-center rounded-lg font-bold text-lg ${
+                            isMatched ? 'bg-green-200 text-green-800' : 'bg-gray-100 text-gray-400 border border-gray-200 border-dashed'
+                        }">
+                            ${matches[t.id] || "הניחו מילה כאן"}
+                        </div>
+                    `;
+
+                    div.onclick = () => handleTargetClick(t.id, t.word);
+                    targetsContainer.appendChild(div);
+                });
+            };
+
+            const handleTargetClick = (targetId, expectedWord) => {
+                if (!selectedWord) return;
+                
+                if (selectedWord === expectedWord) {
+                    matches[targetId] = selectedWord;
+                    bank = bank.filter(w => w !== selectedWord);
+                    selectedWord = null;
+                    updateScore(10);
+                    showFeedback('success', 'בול פגיעה!');
+                    
+                    if (Object.keys(matches).length === stage.pairs.length) {
+                        renderDOM(); // Final render before next stage
+                        setTimeout(nextStage, 1500);
+                    } else {
+                        renderDOM();
+                    }
+                } else {
+                    updateScore(-5);
+                    showFeedback('error', 'התאמה שגויה.');
+                    selectedWord = null;
+                    renderDOM();
+                }
+            };
+
+            renderDOM();
+        }
+
+        function renderScratch(stage) {
+            let revealed = {};
+            let answers = {};
+            const sortedWords = [...stage.words].sort();
+
+            const renderDOM = () => {
+                appContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="scratchGrid"></div>`;
+                const grid = document.getElementById('scratchGrid');
+
+                stage.items.forEach((item, idx) => {
+                    const isRevealed = !!revealed[idx];
+                    const answer = answers[idx];
+                    const container = document.createElement('div');
+                    container.className = "relative group";
+
+                    let innerHTML = `
+                        <div class="h-48 border-2 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all ${
+                            answer ? 'border-green-400 bg-green-50' : 'border-blue-200 bg-white shadow-md'
+                        }">
+                    `;
+
+                    if (!isRevealed) {
+                        innerHTML += `
+                            <button id="revealBtn-${idx}" class="absolute inset-0 z-10 hover:bg-slate-300 blur-overlay rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors border-2 border-transparent hover:border-slate-400">
+                                <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm text-slate-500">
+                                    <i data-lucide="eye"></i>
+                                </div>
+                                <span class="font-bold text-slate-700 text-lg drop-shadow-md">לחצו כדי לגלות</span>
+                            </button>
+                        `;
+                    }
+
+                    innerHTML += `<p class="text-gray-700 font-medium mb-4 z-0 ${!isRevealed ? 'blur-sm' : ''}">${item.clue}</p>`;
+
+                    if (answer) {
+                        innerHTML += `<span class="bg-green-500 text-white px-4 py-2 rounded-full font-bold z-20 relative">${answer}</span>`;
+                    } else {
+                        let optionsStr = '<option value="" disabled selected>בחרו מילה מתאימה...</option>';
+                        sortedWords.forEach(w => {
+                            optionsStr += `<option value="${w}">${w}</option>`;
+                        });
+                        innerHTML += `
+                            <div class="w-full relative z-20 ${!isRevealed ? 'hidden' : ''}">
+                                <select id="select-${idx}" class="w-full border-2 border-blue-300 rounded-lg p-2 bg-blue-50 text-blue-800 font-bold outline-none focus:border-blue-500">
+                                    ${optionsStr}
+                                </select>
+                            </div>
+                        `;
+                    }
+
+                    innerHTML += `</div>`;
+                    container.innerHTML = innerHTML;
+                    grid.appendChild(container);
+
+                    // Add Listeners after appending
+                    setTimeout(() => {
+                        const revealBtn = document.getElementById(`revealBtn-${idx}`);
+                        if (revealBtn) {
+                            revealBtn.onclick = () => {
+                                revealed[idx] = true;
+                                renderDOM();
+                            };
+                        }
+
+                        const selectEl = document.getElementById(`select-${idx}`);
+                        if (selectEl) {
+                            selectEl.onchange = (e) => handleSelect(idx, e.target.value, item.answer);
+                        }
+                    }, 0);
+                });
+                lucide.createIcons();
+            };
+
+            const handleSelect = (idx, selectedWord, correctWord) => {
+                if (selectedWord === correctWord) {
+                    answers[idx] = selectedWord;
+                    updateScore(10);
+                    showFeedback('success', 'גיליתם נכון!');
+                    
+                    if (Object.keys(answers).length === stage.items.length) {
+                        renderDOM();
+                        setTimeout(nextStage, 1500);
+                    } else {
+                        renderDOM();
+                    }
+                } else {
+                    updateScore(-5);
+                    showFeedback('error', 'מילה לא נכונה.');
+                    // Reset select
+                    document.getElementById(`select-${idx}`).value = "";
+                }
+            };
+
+            renderDOM();
+        }
+
+        function renderStory(stage) {
+            let answers = {};
+            let isChecking = false;
+            const blanks = stage.story.filter(p => p.type === 'blank');
+
+            const renderDOM = () => {
+                let blankCounter = 0;
+                let storyHTML = '';
+
+                stage.story.forEach((part, idx) => {
+                    if (part.type === 'text') {
+                        storyHTML += `<span>${part.content}</span>`;
+                    } else {
+                        const currentBlankIndex = blankCounter++;
+                        const isCorrect = isChecking && answers[currentBlankIndex] === part.answer;
+                        const isWrong = isChecking && answers[currentBlankIndex] !== part.answer;
+                        
+                        let selectClasses = `mx-2 border-b-4 border-t-0 border-l-0 border-r-0 bg-transparent font-bold outline-none cursor-pointer pb-1 transition-colors `;
+                        if (isCorrect) selectClasses += 'border-green-500 text-green-700';
+                        else if (isWrong) selectClasses += 'border-red-500 text-red-700';
+                        else selectClasses += 'border-indigo-300 hover:border-indigo-500 text-indigo-700';
+
+                        let optionsStr = '<option value="" disabled selected>___</option>';
+                        [...part.options].sort().forEach(opt => {
+                            optionsStr += `<option value="${opt}" ${answers[currentBlankIndex] === opt ? 'selected' : ''}>${opt}</option>`;
+                        });
+
+                        storyHTML += `
+                            <select id="story-select-${currentBlankIndex}" class="${selectClasses}" ${isCorrect ? 'disabled' : ''}>
+                                ${optionsStr}
+                            </select>
+                        `;
+                    }
+                });
+
+                appContainer.innerHTML = `
+                    <div class="max-w-2xl mx-auto animate-fade-in">
+                        <div class="bg-yellow-50 p-8 rounded-3xl border border-yellow-200 shadow-sm text-xl leading-loose text-gray-800">
+                            ${storyHTML}
+                        </div>
+                        <button id="storyCheckBtn" disabled class="mt-8 w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xl transition-all shadow-md">
+                            סיים סיפור
+                        </button>
+                    </div>
+                `;
+
+                // Add listeners
+                const checkBtn = document.getElementById('storyCheckBtn');
+                blanks.forEach((_, idx) => {
+                    const selectEl = document.getElementById(`story-select-${idx}`);
+                    if (selectEl) {
+                        selectEl.onchange = (e) => {
+                            answers[idx] = e.target.value;
+                            checkBtn.disabled = Object.keys(answers).length < blanks.length || isChecking;
+                        };
+                    }
+                });
+
+                checkBtn.onclick = () => {
+                    isChecking = true;
+                    checkBtn.disabled = true;
+                    renderDOM(); // Re-render to show colors
+
+                    let allCorrect = true;
+                    blanks.forEach((b, idx) => {
+                        if (answers[idx] !== b.answer) allCorrect = false;
+                    });
+
+                    if (allCorrect) {
+                        updateScore(30);
+                        showFeedback('success', 'הסיפור הושלם!');
+                        setTimeout(nextStage, 2000);
+                    } else {
+                        updateScore(-10);
+                        showFeedback('error', 'בדקו את המילים שוב.');
+                        setTimeout(() => {
+                            isChecking = false;
+                            renderDOM();
+                        }, 2000);
+                    }
+                };
+            };
+
+            renderDOM();
+        }
+
+        function renderProduction() {
+            let sentences = ["", "", ""];
+            let showWords = false;
+            let submitted = false;
+            let botFeedback = null;
+
+            stageHeader.classList.add('hidden'); // Ensure header is hidden for final stage
+
+            const renderDOM = () => {
+                if (submitted) {
+                    stopTimer(); // Stop timer when finished
+                    appContainer.innerHTML = `
+                        <div class="flex flex-col items-center justify-center p-8 text-center space-y-6 animate-fade-in">
+                            <div class="p-6 bg-yellow-100 rounded-full text-yellow-500 mb-4 shadow-inner">
+                                <i data-lucide="trophy" class="w-16 h-16"></i>
+                            </div>
+                            <h2 class="text-4xl font-black text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-500">
+                                אלופים! סיימתם את המסע!
+                            </h2>
+                            
+                            <div class="flex gap-6 mt-4">
+                                <div class="bg-white p-4 rounded-2xl shadow-sm border border-yellow-200 flex flex-col items-center min-w-[120px]">
+                                    <span class="text-sm text-gray-500 font-bold mb-1">הניקוד הסופי</span>
+                                    <span class="text-3xl font-black text-yellow-500">${score}</span>
+                                </div>
+                                <div class="bg-white p-4 rounded-2xl shadow-sm border border-blue-200 flex flex-col items-center min-w-[120px]">
+                                    <span class="text-sm text-gray-500 font-bold mb-1">הזמן שלך</span>
+                                    <span class="text-3xl font-black text-blue-500">${formatTime(timerSeconds)}</span>
+                                </div>
+                            </div>
+
+                            <p class="text-xl text-gray-600 max-w-lg mt-6">
+                                תרגלתם בהצלחה מילים ברמת B2. המשיכו לתרגל עברית ולהשתמש במילים החדשות שלמדתם.
+                            </p>
+                            
+                            <button id="restartBtn" class="mt-8 px-8 py-4 bg-gray-800 hover:bg-gray-900 text-white rounded-full font-bold text-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all flex items-center gap-2">
+                                <i data-lucide="rotate-ccw" class="w-6 h-6"></i> התחל מחדש
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('restartBtn').onclick = resetGame;
+                    lucide.createIcons();
+                    return;
+                }
+
+                let wordsHTML = '';
+                if (showWords) {
+                    wordsHTML = `
+                        <div class="mt-4 flex flex-wrap gap-2 p-4 bg-white rounded-xl border border-blue-100 max-h-48 overflow-y-auto shadow-inner transition-all animate-fade-in">
+                            ${allWords.map(w => `<span class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium border border-indigo-100">${w}</span>`).join('')}
+                        </div>
+                    `;
+                }
+
+                let feedbackHTML = '';
+                if (botFeedback) {
+                    feedbackHTML = `
+                        <div class="p-4 rounded-xl border flex items-start gap-3 mt-4 animate-fade-in ${botFeedback.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-orange-50 border-orange-200 text-orange-800'}">
+                            <i data-lucide="${botFeedback.success ? 'check-circle-2' : 'x-circle'}" class="w-6 h-6 shrink-0 ${botFeedback.success ? 'text-green-600' : 'text-orange-500'}"></i>
+                            <p class="font-medium text-lg">${botFeedback.message}</p>
+                        </div>
+                    `;
+                }
+
+                let inputsHTML = '';
+                for (let i = 0; i < 3; i++) {
+                    inputsHTML += `
+                        <div class="flex flex-col gap-2">
+                            <label class="font-bold text-gray-700">משפט ${i + 1}:</label>
+                            <input type="text" id="sentence-${i}" class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none text-lg text-gray-700 shadow-inner transition-colors" placeholder="הקלידו כאן את המשפט ה-${i + 1}..." value="${sentences[i]}">
+                        </div>
+                    `;
+                }
+
+                appContainer.innerHTML = `
+                    <div class="max-w-2xl mx-auto space-y-6 animate-fade-in">
+                        <div class="bg-blue-50 border border-blue-100 p-6 rounded-2xl">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="bg-yellow-100 p-2 rounded-full text-yellow-600">
+                                    <i data-lucide="trophy" class="w-6 h-6"></i>
+                                </div>
+                                <h3 class="font-bold text-blue-900 text-2xl">משימה אחרונה לפני סיום!</h3>
+                            </div>
+                            <p class="text-blue-800 text-lg">
+                                כיתבו 3 משפטים משלכם. בכל משפט שלבו לפחות מילה אחת שלמדתם במהלך הפעילות (בסך הכל עליכם לשלב לפחות 3 מילים מהיחידה).
+                            </p>
+                            
+                            <button id="toggleWordsBtn" class="mt-4 flex items-center gap-2 text-indigo-600 font-bold hover:text-indigo-800 transition-colors bg-white px-4 py-2 rounded-lg border border-indigo-200 shadow-sm">
+                                <i data-lucide="${showWords ? 'chevron-up' : 'chevron-down'}" class="w-5 h-5"></i>
+                                ${showWords ? "הסתר מחסן מילים" : "שכחתם את המילים? לחצו כאן למחסן המילים"}
+                            </button>
+                            ${wordsHTML}
+                        </div>
+                        
+                        <div class="space-y-4">
+                            ${inputsHTML}
+                        </div>
+
+                        <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 mt-8 shadow-sm">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="bg-blue-500 p-2 rounded-full text-white">
+                                    <i data-lucide="bot" class="w-6 h-6"></i>
+                                </div>
+                                <h4 class="font-bold text-lg text-slate-800">בדיקת הבוט החכם</h4>
+                            </div>
+
+                            <button id="checkBotBtn" class="w-full py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl transition-all shadow-md flex justify-center items-center gap-2 text-lg">
+                               בדוק את המשפטים שלי
+                            </button>
+                            ${feedbackHTML}
+                        </div>
+                        
+                        ${botFeedback?.success ? `
+                            <button id="finishBtn" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl text-xl transition-all shadow-lg flex justify-center items-center gap-2 mt-4 animate-fade-in">
+                                <i data-lucide="check-circle-2"></i> סיים פעילות
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Re-bind listeners
+                document.getElementById('toggleWordsBtn').onclick = () => { showWords = !showWords; renderDOM(); };
+                
+                for(let i=0; i<3; i++){
+                    const input = document.getElementById(`sentence-${i}`);
+                    if(input) {
+                        input.oninput = (e) => {
+                            sentences[i] = e.target.value;
+                            if (botFeedback) { botFeedback = null; renderDOM(); } // reset feedback on typing
+                        };
+                        // Restore focus logic could be added here if needed for seamless typing, but usually losing focus on re-render isn't great. 
+                        // To avoid losing focus on every keystroke, we don't re-render on input, only on button clicks.
+                    }
+                }
+
+                document.getElementById('checkBotBtn').onclick = () => {
+                    // Update sentences array from DOM before checking
+                    for(let i=0; i<3; i++) {
+                        sentences[i] = document.getElementById(`sentence-${i}`).value;
+                    }
+
+                    const fullText = sentences.join(" ");
+                    const usedWords = allWords.filter(word => fullText.includes(word));
+                    
+                    let feedback = { success: false, message: "", foundWords: usedWords };
+
+                    if (sentences.some(s => s.trim().length < 5)) {
+                        feedback.message = "אנא כתבו משפט שלם (לפחות מספר מילים) בכל אחת מ-3 התיבות.";
+                    } else if (usedWords.length < 3) {
+                        feedback.message = `זיהיתי רק ${usedWords.length} מילים מהיחידה. נסו לשלב לפחות 3 מילים סך הכל! (היעזרו במחסן המילים)`;
+                    } else {
+                        feedback.success = true;
+                        feedback.message = `עבודה מעולה! הבוט זיהה את המילים: ${usedWords.join(", ")}.`;
+                    }
+                    botFeedback = feedback;
+                    renderDOM();
+                };
+
+                const finishBtn = document.getElementById('finishBtn');
+                if (finishBtn) {
+                    finishBtn.onclick = () => {
+                        submitted = true;
+                        renderDOM();
+                    };
+                }
+
+                lucide.createIcons();
+            };
+
+            renderDOM();
+        }
+
+        // --- INIT ---
+        renderStage();
+        lucide.createIcons();
+
+    </script>
+</body>
+</html>
